@@ -108,3 +108,53 @@ class ConfigInfo:
 
             # Устанавливаем значение атрибута
             setattr(self, key, value)
+            
+            
+async def connect(
+    host: str,
+    port: int,
+    user: str,
+    password: str,
+    db: str
+):
+    """
+    Асинхронно подключается к PostgreSQL и создаёт все таблицы, если они ещё не существуют.
+    Также инициализирует фабрику сессий (`Session`) для работы с БД.
+
+    Возвращает:
+    ------------
+    async_sessionmaker
+        Фабрика асинхронных сессий для работы с БД.
+
+    Исключения:
+    ------------
+    SQLAlchemyError
+        Если произошла ошибка на уровне SQLAlchemy.
+    Exception
+        Для всех остальных непредвиденных ошибок.
+    """
+
+    global Session
+
+    try:
+        # Создание асинхронного движка
+        engine = create_async_engine(f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db}")
+
+        # Создание таблиц
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        # Создание фабрики сессий
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        logger.success("Успешное подключение к бд и создание таблиц.")
+        return Session
+
+    except SQLAlchemyError as e:
+        # Обработка ошибок SQLAlchemy
+        logger.error(f"Ошибка SQLAlchemy при подключении к базе данных: {e}")
+        raise  # Переброс исключения для вызывающего кода
+
+    except Exception as e:
+        # Обработка всех остальных ошибок
+        logger.error(f"Непредвиденная ошибка при подключении к базе данных: {e}")
+        raise  # Переброс исключения для вызывающего кода
