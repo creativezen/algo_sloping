@@ -1,0 +1,106 @@
+# === Python ===
+# Байт-код и скомпилированные файлы Python
+__pycache__/
+*.py[cod]
+
+# Виртуальные окружения
+venv/
+ENV/
+env/
+.venv/
+
+# Файлы зависимостей
+pip-log.txt
+pip-delete-this-directory.txt
+
+# PyCharm и другие IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Тестовые и локальные файлы
+*.log
+*.sqlite3
+*.db
+*.env
+*.env.local
+*.env.*.local
+*.ini
+
+# Дистрибутивы и build-файлы
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# === PostgreSQL ===
+# Логи PostgreSQL
+pg_log/
+postgresql.conf
+pg_hba.conf
+
+# === Aiogram ===
+# Логи бота
+bot.log
+bot_logs/
+logs/
+
+# === Конфиденциальные данные ===
+# Файлы с секретами (ключи API, пароли и т.д.)
+.env
+secrets.json
+config.json
+keys.json
+
+# === Docker ===
+# Docker-файлы
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker/
+.docker/
+
+# === CI/CD ===
+# Файлы, созданные CI/CD системами
+.github/
+.gitlab-ci.yml
+circleci/
+travis.yml
+
+# === macOS ===
+# Системные файлы macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# === Windows ===
+# Системные файлы Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# === Linux ===
+# Системные файлы Linux
+*~
+
+# === Прочее ===
+# Временные файлы
+*.tmp
+*.bak
+*.swp
+*.swo
