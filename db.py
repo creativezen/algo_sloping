@@ -158,3 +158,53 @@ async def connect(
         # Обработка всех остальных ошибок
         logger.error(f"Непредвиденная ошибка при подключении к базе данных: {e}")
         raise  # Переброс исключения для вызывающего кода
+    
+    
+async def load_config():
+    """
+    Инициализирует конфигурационные параметры в базе данных и загружает их обратно.
+
+    1. Для каждого ключа из класса `ConfigInfo` создаёт запись в таблице `Config`.
+       Если такая запись уже существует — игнорируется.
+    2. После инициализации загружает все записи из таблицы `Config`.
+    3. Преобразует их в экземпляр класса `ConfigInfo`.
+
+    Возвращает:
+    ------------
+    ConfigInfo
+        Объект с загруженной конфигурацией из базы данных.
+
+    Исключения:
+    ------------
+    SQLAlchemyError
+        Если произошла ошибка на уровне SQLAlchemy при работе с БД.
+    Exception
+        Для всех остальных непредвиденных ошибок.
+    """
+
+    # Инициализация конфигурации в базе данных
+    for key in ConfigInfo.__annotations__.keys():
+        try:
+            async with Session() as session:
+                # Попытка добавить запись в таблицу Config
+                session.add(Config(key=key, value=None))
+                await session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка при добавлении конфигурации '{key}' в базу данных: {e}")
+        except Exception as e:
+            logger.error(f"Непредвиденная ошибка при добавлении конфигурации '{key}': {e}")
+
+    try:
+        # Загрузка данных из базы
+        async with Session() as session:
+            result = (await session.execute(select(Config))).scalars().all()
+            data = {row.key: row.value for row in result}
+            return ConfigInfo(data)
+    except SQLAlchemyError as e:
+        # Логирование ошибки при чтении данных из базы
+        logger.error(f"Ошибка при загрузке данных конфигурации из базы данных: {e}")
+        raise  # Переброс исключения для вызывающего кода
+    except Exception as e:
+        # Логирование непредвиденных ошибок
+        logger.error(f"Непредвиденная ошибка при загрузке данных конфигурации: {e}")
+        raise  # Переброс исключения для вызывающего кода
