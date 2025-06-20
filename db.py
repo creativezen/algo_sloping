@@ -62,3 +62,49 @@ class Orders(Base):
     reduce: Mapped[bool] = mapped_column(Boolean)
     price: Mapped[float] = mapped_column(Float)
     quantity: Mapped[float] = mapped_column(Float)
+    
+    
+class ConfigInfo:
+    """
+    Класс для хранения конфигурационных данных, загруженных из базы данных.
+
+    Предоставляет удобный способ динамической инициализации атрибутов,
+    а также автоматически преобразует значения к числовым типам (int/float),
+    если это возможно.
+    Все атрибуты инициализируются как None, если не переданы в `data`.
+    """
+
+    api_key: str
+    api_secret: str
+    trade_mode: int
+
+    def __init__(self, data):
+        """
+        Инициализирует объект на основе словаря `data`.
+
+        Попытка преобразования значений:
+        - Сначала пытается привести значение к `int`.
+        - Если не удалось — пытается привести к `float`.
+        - Если всё неудачно — сохраняет исходное значение.
+        """
+        # Инициализируем все объявленные атрибуты как None
+        for key in self.__class__.__annotations__:
+            setattr(self, key, None)
+
+        # Обрабатываем входные данные
+        for key, value in data.items():
+            try:
+                # Попытка преобразовать значение в int
+                value = int(value)
+            except ValueError as e:
+                logger.warning(f"Не удалось преобразовать '{key}' в int: {e}. Пробую преобразовать в float.")
+                try:
+                    # Попытка преобразовать значение в float
+                    value = float(value)
+                except ValueError as e:
+                    logger.error(f"Не удалось преобразовать '{key}' в float: {e}. Оставляю оригинальное значение.")
+                    # Если оба преобразования неудачны, сохраняем оригинальное значение
+                    pass
+
+            # Устанавливаем значение атрибута
+            setattr(self, key, value)
