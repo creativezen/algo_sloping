@@ -15,7 +15,7 @@ class Config(Base):
     __tablename__ = "config"
     
     key: Mapped[str] = mapped_column(String, primary_key=True)
-    value: Mapped[str] = mapped_column(String)
+    value: Mapped[str] = mapped_column(String, nullable=True)
 
 
 class SymbolsSettings(Base):
@@ -93,6 +93,10 @@ class ConfigInfo:
 
         # Обрабатываем входные данные
         for key, value in data.items():
+            # Проверяем, что значение не равно None
+            if value is None:
+                setattr(self, key, value)
+                continue
             try:
                 # Попытка преобразовать значение в int
                 value = int(value)
