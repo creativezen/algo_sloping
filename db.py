@@ -84,13 +84,11 @@ class ConfigInfo:
             if key not in self.__class__.__annotations__:
                 logger.warning(f"Ключ '{key}' не определен в классе ConfigInfo. Пропускаю.")
                 continue
-            
             # Если значение равно None
             if value is None:
                 # Если значение None, то просто присваиваем его атрибуту
                 setattr(self, key, value)
                 continue
-
             try:
                 # Попытка преобразовать значение в int
                 value = int(value)
@@ -201,7 +199,7 @@ async def load_config():
         logger.success("Конфигурация загружена из базы данных.")
 
 
-async def get_all_symbols():
+async def get_all_symbols() -> list:
     """
     Асинхронно получает список всех торговых пар (символов) из базы данных.
 
@@ -220,13 +218,48 @@ async def get_all_symbols():
         # Открываем асинхронную сессию и выполняем запрос
         async with Session() as session:
             result = await session.execute(select(SymbolsSettings.symbol)).sacalars().all()
-
     except SQLAlchemyError as e:
         # Логируем ошибку при взаимодействии с базой данных
         logger.error(f"Ошибка при получении всех символов: {e}")
         return []  # Возвращаем пустой список при ошибке
-
     finally:
         # Возвращаем результат вне зависимости от исключений
         # Если произошла ошибка — result будет None, иначе список символов
+        return result
+    
+
+async def get_one_symbol(symbol: str) -> dict:
+    """
+    Асинхронно получает информацию о торговой паре (символе) из базы данных.
+
+    Параметры:
+    ------------
+    symbol : str
+        Торговая пара (символ) для поиска в базе данных.
+
+    Возвращает:
+    ------------
+    dict
+        Словарь с информацией о торговой паре (символе) в виде ключ-значение. 
+        В случае ошибки возвращает пустой словарь.
+
+    Исключения:
+    -------------
+    SQLAlchemyError
+    Логирует ошибку, если возникает проблема на уровне ORM или подключения к БД.
+    """
+    try:
+        async with Session() as session:
+            result = await (
+                session.execute(select(SymbolsSettings)
+                    .where(SymbolsSettings.symbol == symbol))
+                    .first()
+                )
+    except SQLAlchemyError as e:
+        # Логируем ошибку при взаимодействии с базой данных
+        logger.error(f"Ошибка при получении символа: {e}")
+        return {} # Возвращаем пустой словарь при ошибке
+    finally:
+        # Возвращаем результат вне зависимости от исключений
+        # Если произошла ошибка — result будет None, иначе словарь символов
         return result
