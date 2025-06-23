@@ -20,16 +20,18 @@ class BybitClient:
     def __init__(
         self,
         api_key,
-        api_url,
-        secret_key,
         testnet,
+        base_url,
+        testnet_url,
+        secret_key,
         category,
         recv_window
     ):
         self.api_key = api_key
         self.secret_key = secret_key
         self.testnet = testnet
-        self.api_url = api_url
+        self.base_url = base_url
+        self.testnet_url = testnet_url
         self.category = category
         self.recv_window = recv_window
 
