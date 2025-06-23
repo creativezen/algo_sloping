@@ -1,120 +1,182 @@
-import hashlib
-import hmac
 import time
 import aiohttp
-import requests
-import ujson
-import inspect
-from .error import ClientException, ServerException
-from .endpoints import Endpoints
-from .websockets import Websocket
+import hmac
+import hashlib
+
+from pprint import pformat
+from loguru import logger
 
 
-class Client(Endpoints):
-    base_url: str
-    recv_window = 5000
-    __session: aiohttp.ClientSession or requests.Session
-
-    def __init__(self, api_key=None, secret_key=None, testnet=False, category=None):
+class BybitClient:
+    api_key: str
+    secret_key: str
+    testnet: bool
+    api_url: str
+    category: str
+    recv_window: str
+    
+    headers: dict = {}
+    
+    def __init__(
+        self,
+        api_key,
+        api_url,
+        secret_key,
+        testnet,
+        category,
+        recv_window
+    ):
         self.api_key = api_key
         self.secret_key = secret_key
         self.testnet = testnet
-        self.base_url = "https://api-testnet.bybit.com" if testnet else "https://api.bybit.com"
+        self.api_url = api_url
         self.category = category
-        self.__headers = {
-            "Content-Type": "application/json;charset=utf-8"
+        self.recv_window = recv_window
+
+    # api_key: str = Config.API_KEY
+    # secret_key: str = Config.SECRET_KEY
+    # testnet: bool = Config.TESTNET
+    # api_url: str = Config.testnet_url if testnet else Config.BASE_URL
+    # category: str = Config.MARKET_CATEGORY
+    # recv_window: str = Config.RECV_WINDOW
+    # headers: dict = {}
+    
+    
+    async def hash_signature(self, params, timestamp) -> str:
+        """
+        Создает подпись (signature) для аутентификации API-запроса
+        Подпись генерируется по формуле: 
+            SHA256(timestamp + api_key + recv_window + query_string)
+        :params: Параметры запроса
+        :timestamp: Текущее время в миллисекундах
+        :return: Строка подписи в шестнадцатеричном формате
+        """
+        # Формируем строку запроса
+        query_str = '&'.join([f"{key}={value}" for key, value in params.items()])
+        
+        # Объединяем все данные в одну строку для хэширования
+        param_str = f"{timestamp}{self.api_key}{self.recv_window}{query_str}"
+        
+        # Генерируем SHA256-хэш и возвращаем его как hex-строку
+        signature = hmac.new(
+            bytes(self.secret_key, "utf-8"),
+            param_str.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return signature
+    
+    
+    async def set_headers(self, signature=None, timestamp=None) -> dict:
+        """
+        Устанавливает заголовки для авторизованного запроса к Bybit API
+        Заголовки соответствуют требованиям Bybit:
+        
+        - X-BAPI-API-KEY: ваш публичный ключ
+        - X-BAPI-SIGN: подпись запроса
+        - X-BAPI-TIMESTAMP: временная метка
+        - X-BAPI-RECV-WINDOW: окно времени жизни запроса (recvWindow)
+        
+        :signature: Подпись запроса
+        :timestamp: Временная метка в мс
+        :return: Словарь заголовков
+        """
+        if self.api_key:
+            self.headers["X-BAPI-API-KEY"] = self.api_key
+        if self.recv_window:
+            self.headers["X-BAPI-RECV-WINDOW"] = self.recv_window
+        if signature:
+            self.headers["X-BAPI-SIGN"] = signature
+        if timestamp:
+            self.headers["X-BAPI-TIMESTAMP"] = timestamp
+
+        return self.headers
+    
+    
+    async def send_request(self, url, params):
+        """
+        Запрос к API с необходимыми параметрами и аутентификацией.
+
+        1. Генерируется текущий timestamp в миллисекундах для подписи запроса.
+        2. Формируются заголовки запроса (включая подпись) через метод `set_headers`.
+        3. Выполняется GET-запрос к указанному URL с переданными параметрами.
+        4. Проверяется статус ответа:
+        - Если не 200 — выбрасывается исключение.
+        - Если тело ответа содержит ошибку API (`retCode != 0`) — также выбрасывается исключение.
+        5. В случае успеха — возвращается полезная нагрузка (`result` из JSON-ответа).
+
+        Параметры:
+        ----------
+        url : str Полный URL-адрес API-метода
+        params : dict Словарь параметров запроса
+
+        Возвращает:
+        ------------
+        dict Данные из поля `result` JSON-ответа сервера.
+        """
+        # Получаем текущее время в миллисекундах для формирования подписи
+        timestamp = str(int(time.time() * 1000))
+        
+        # Формируем заголовки запроса, включая аутентификацию и подпись
+        headers = await self.set_headers(timestamp=timestamp)
+
+        # Создаём асинхронную сессию с указанием заголовков
+        async with aiohttp.ClientSession(headers=headers) as session:
+            # Выполняем GET-запрос
+            async with session.get(url=url, params=params, headers=headers) as response:
+                # Проверяем успешность HTTP-ответа
+                if response.status != 200:
+                    logger.error(f"Ошибка сервера")
+                    raise Exception(f"HTTP ошибка: {response.status}: {await response.text()}")
+
+                # Парсим JSON-ответ
+                data = await response.json()
+
+                # Проверяем, нет ли ошибки на уровне API
+                if data.get("retCode") != 0:
+                    logger.error(f"Ошибка обработки API")
+                    raise Exception(f"Ошибка в API: {data['retMsg']}")
+
+                # Возвращаем результат, если всё прошло успешно
+                return data['result']
+    
+        
+    async def get_klines(self, symbol: str, interval: str, limit: int = 200):
+        """
+        Получает свечные данные (kline) для указанной пары
+        :interval: Интервал свечей
+        :limit: Количество запрашиваемых свечей
+        :return: Список свечей (open_time, open, high, low, close, volume, turnover)
+        """
+        url = f"{self.api_url}/v5/market/kline"
+        
+        params = {
+            "category": self.category,
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit
         }
-        if api_key and secret_key:
-            self.__headers["X-BAPI-API-KEY"] = api_key
-            self.__headers["X-BAPI-RECV-WINDOW"] = str(self.recv_window)
-        frame = inspect.currentframe().f_back
-        self.__asynced = inspect.iscoroutinefunction(frame.f_globals.get(frame.f_code.co_name))
-        if self.__asynced:
-            self.__session = aiohttp.ClientSession(headers=self.__headers)
-        else:
-            self.__session = requests.Session()
-            self.__session.headers.update(self.__headers)
-
-    def close(self):
-        return self.__session.close()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
-
-    def __get_signature(self, post_method, data, timestamp):
-        param_str = timestamp + self.api_key + str(self.recv_window)
-        param_str += ujson.dumps(data) if post_method else "&".join([f"{k}={v}" for k, v in data.items()])
-        return hmac.new(bytes(self.secret_key, "utf-8"), param_str.encode("utf-8"), hashlib.sha256).hexdigest()
-
-    def __prepare_data(self, post_method, sign, data):
-        new_data = {}
-        for key, value in data.items():
-            if value is not None:
-                if isinstance(value, list):
-                    new_data[key] = ujson.dumps(value)
-                else:
-                    new_data[key] = str(value)
-            elif key == "category" and self.category:
-                new_data[key] = str(self.category)
-        headers = self.__headers.copy()
-        if sign:
-            timestamp = str(int(time.time() * 1000))
-            headers["X-BAPI-SIGN"] = self.__get_signature(post_method, new_data, timestamp)
-            headers["X-BAPI-TIMESTAMP"] = timestamp
-        self.__session.headers.update(headers)
-        return new_data
-
-    def request(self, post_method, url, sign, **data):
-        data = self.__prepare_data(post_method, sign, data)
-        data = {"data": ujson.dumps(data)} if post_method else {"params": data}
-        if self.__asynced:
-            return self.__request_async(post_method, url, data)
-        else:
-            return self.__request_sync(post_method, url, data)
-
-    def __request_sync(self, post_method, url, data):
-        with (self.__session.post if post_method else self.__session.get)(self.base_url + url, **data) as res:
-            return self.__response(res.status_code, res.headers, res.text)
-
-    async def __request_async(self, post_method, url, data):
-        async with (self.__session.post if post_method else self.__session.get)(self.base_url + url, **data) as res:
-            return self.__response(res.status, dict(res.headers), await res.text())
-
-    @staticmethod
-    def __response(code, headers, text):
-        if 400 <= code < 500:
-            raise ClientException(code, text, headers)
-        if code >= 500:
-            raise ServerException(code, text)
-        try:
-            data = ujson.loads(text)
-            if ret_code := data.get("retCode"):
-                raise ClientException(code, text, headers, ret_code, data.get("retMsg"))
-            return data.get("result")
-        except ujson.JSONDecodeError:
-            return text
-
-    async def __ws_async(self, category, streams, on_message, on_open, on_close, on_error, api_key=None,
-                         secret_key=None):
-        return Websocket(category, True, streams, on_message, on_open, on_close, on_error, self.testnet,
-                         api_key, secret_key)
-
-    def websocket(self, streams=None, on_message=None, on_open=None, on_close=None, on_error=None, category=None):
-        if self.__asynced:
-            return self.__ws_async(category if category else self.category, streams, on_message, on_open, on_close,
-                                   on_error)
-        else:
-            return Websocket(category if category else self.category, False, streams, on_message, on_open,
-                             on_close, on_error, self.testnet)
-
-    def websocket_userdata(self, streams=None, on_message=None, on_open=None, on_close=None, on_error=None,
-                           category=None):
-        if self.__asynced:
-            return self.__ws_async(category if category else self.category, streams, on_message, on_open, on_close,
-                                   on_error, self.api_key, self.secret_key)
-        else:
-            return Websocket(category if category else self.category, False, streams, on_message, on_open,
-                             on_close, on_error, self.testnet, self.api_key, self.secret_key)
+        
+        response = await self.send_request(url=url, params=params)
+        return response['list']
+    
+            
+    async def get_instruments_info(self, symbol: str | None = None):
+        """
+        Получает информацию о торговой паре, такую как tickSize др.
+        :return: Список информации по инструментам (для одной пары)
+        """
+        url = f"{self.api_url}/v5/market/instruments-info"
+        
+        params = {
+            "category": self.category,
+        }
+        
+        if symbol:
+            params["symbol"] = symbol.upper()
+        
+        response = await self.send_request(url=url, params=params)
+        return response['list']
+            
+        
+    
