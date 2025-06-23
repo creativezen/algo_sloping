@@ -34,14 +34,6 @@ class BybitClient:
         self.testnet_url = testnet_url
         self.category = category
         self.recv_window = recv_window
-
-    # api_key: str = Config.API_KEY
-    # secret_key: str = Config.SECRET_KEY
-    # testnet: bool = Config.TESTNET
-    # api_url: str = Config.testnet_url if testnet else Config.BASE_URL
-    # category: str = Config.MARKET_CATEGORY
-    # recv_window: str = Config.RECV_WINDOW
-    # headers: dict = {}
     
     
     async def hash_signature(self, params, timestamp) -> str:
@@ -150,7 +142,7 @@ class BybitClient:
         :limit: Количество запрашиваемых свечей
         :return: Список свечей (open_time, open, high, low, close, volume, turnover)
         """
-        url = f"{self.api_url}/v5/market/kline"
+        url = f"{self.base_url}/v5/market/kline"
         
         params = {
             "category": self.category,
@@ -168,7 +160,7 @@ class BybitClient:
         Получает информацию о торговой паре, такую как tickSize др.
         :return: Список информации по инструментам (для одной пары)
         """
-        url = f"{self.api_url}/v5/market/instruments-info"
+        url = f"{self.base_url}/v5/market/instruments-info"
         
         params = {
             "category": self.category,
