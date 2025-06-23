@@ -24,8 +24,9 @@ async def main():
     client = BybitClient(
         api_key=config['BYBIT']['API_KEY'],
         secret_key=config['BYBIT']['SECRET_KEY'],
-        testnet=config['BYBIT']['TESTNET'],
-        api_url=config['BYBIT']['BASE_URL'] if config['BYBIT']['TESTNET'] else config['BYBIT']['TESNET_URL'],
+        testnet=config.getboolean('BYBIT', 'TESTNET'),
+        base_url=config['BYBIT']['BASE_URL'],
+        testnet_url=config['BYBIT']['TESTNET_URL'],
         category=config['BYBIT']['CATEGORY'],
         recv_window=config['BYBIT']['RECV_WINDOW'],
     )
