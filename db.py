@@ -183,7 +183,6 @@ async def load_config():
         except Exception as e:
             logger.error(f"Непредвиденная ошибка при добавлении конфигурации '{key}': {e}")
             continue  # Продолжаем выполнение функции даже при ошибке
-
     try:
         # Загрузка данных из базы
         async with Session() as session:
@@ -200,3 +199,34 @@ async def load_config():
         raise  # Переброс исключения для вызывающего кода
     finally:
         logger.success("Конфигурация загружена из базы данных.")
+
+
+async def get_all_symbols():
+    """
+    Асинхронно получает список всех торговых пар (символов) из базы данных.
+
+    Возвращает:
+    ------------
+    list of str
+        Список торговых пар (например: ['BTCUSDT', 'ETHUSDT']). 
+        В случае ошибки возвращает пустой список.
+    
+    Исключения:
+    -------------
+    SQLAlchemyError
+        Логирует ошибку, если возникает проблема на уровне ORM или подключения к БД.
+    """
+    try:
+        # Открываем асинхронную сессию и выполняем запрос
+        async with Session() as session:
+            result = await session.execute(select(SymbolsSettings.symbol)).sacalars().all()
+
+    except SQLAlchemyError as e:
+        # Логируем ошибку при взаимодействии с базой данных
+        logger.error(f"Ошибка при получении всех символов: {e}")
+        return []  # Возвращаем пустой список при ошибке
+
+    finally:
+        # Возвращаем результат вне зависимости от исключений
+        # Если произошла ошибка — result будет None, иначе список символов
+        return result
