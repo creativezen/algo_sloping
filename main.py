@@ -23,16 +23,20 @@ all_symbols: dict = {}
 
 
 async def load_symbols():
+    """
+    Загружает информацию о всех парах и сохраняет ее в all_symbols.
+    """
     global all_symbols
     
     while True:
         try:
             all_symbols = await client.get_instruments_info()
-            logger.debug(pformat(all_symbols))
+            # logger.debug(pformat(all_symbols))
         except Exception as e:
             logger.error(f"Ошибка загрузки символов: {e}")
             pass
         finally:
+            # Ждем 60 минут перед повторной попыткой загрузки символов
             await asyncio.sleep(3600)
 
 
@@ -70,9 +74,26 @@ async def main():
         recv_window=config['BYBIT']['RECV_WINDOW'],
     )
     
-    asyncio.create_task(load_symbols())
-    logger.debug(pformat(all_symbols))
-
+    # Запускаем задачи в фоновом режиме
+    tasks = {
+        "laod_symbols": asyncio.create_task(load_symbols()),
+        "connect_ws": asyncio.create_task(connect_ws())
+    }
+    
+    # Бесконечный цикл для запуска бота
+    try:
+        # Бот будет работать до тех пор, пока не будет отменена задача
+        logger.info("Бот запущен...")
+        await asyncio.Event().wait()
+            
+    # Если задача была отменена, останавливаем бота и завершаем работу
+    except asyncio.CancelledError:
+        # Отменяем все задачи и ждем их завершения
+        logger.info("...Бот остановлен")
+        for task in tasks.values():
+            task.cancel()
+        await asyncio.gather(*tasks.values(), return_exceptions=True)                
+    
 
 if __name__ == "__main__":
     asyncio.run(main())
