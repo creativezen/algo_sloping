@@ -199,9 +199,9 @@ async def load_config():
         logger.success("Конфигурация загружена из базы данных.")
 
 
-async def get_all_symbols() -> list:
+async def get_all_symbols() -> list[str]:
     """
-    Асинхронно получает список всех торговых пар (символов) из базы данных.
+    Асинхронно получает список всех торговых пар из базы данных.
 
     Возвращает:
     ------------
@@ -212,12 +212,12 @@ async def get_all_symbols() -> list:
     Исключения:
     -------------
     SQLAlchemyError
-        Логирует ошибку, если возникает проблема на уровне ORM или подключения к БД.
+    Логирует ошибку, если возникает проблема на уровне ORM или подключения к БД.
     """
     try:
         # Открываем асинхронную сессию и выполняем запрос
         async with Session() as session:
-            result = await session.execute(select(SymbolsSettings.symbol)).sacalars().all()
+            result = await session.execute(select(SymbolsSettings.symbol)).sacalars().one()
     except SQLAlchemyError as e:
         # Логируем ошибку при взаимодействии с базой данных
         logger.error(f"Ошибка при получении всех символов: {e}")
@@ -230,7 +230,7 @@ async def get_all_symbols() -> list:
 
 async def get_one_symbol(symbol: str) -> dict:
     """
-    Асинхронно получает информацию о торговой паре (символе) из базы данных.
+    Получает информацию о торговой паре из базы данных.
 
     Параметры:
     ------------

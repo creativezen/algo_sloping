@@ -31,7 +31,7 @@ async def load_symbols():
     while True:
         try:
             all_symbols = await client.get_instruments_info()
-            # logger.debug(pformat(all_symbols))
+            logger.debug(pformat(all_symbols))
         except Exception as e:
             logger.error(f"Ошибка загрузки символов: {e}")
             pass
