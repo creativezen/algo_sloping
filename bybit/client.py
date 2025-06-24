@@ -151,6 +151,7 @@ class BybitClient:
             "limit": limit
         }
         
+        logger.info("Выполняем запрос к API...")
         response = await self.send_request(url=url, params=params)
         return response['list']
     
@@ -169,6 +170,7 @@ class BybitClient:
         if symbol:
             params["symbol"] = symbol.upper()
         
+        logger.info("Выполняем запрос к API...")
         response = await self.send_request(url=url, params=params)
         return response['list']
             
